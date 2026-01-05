@@ -11,14 +11,27 @@ from google.oauth2.service_account import Credentials
 # ==========================================
 # 0. 設定とスタイル
 # ==========================================
-st.set_page_config(page_title="待機表メーカー(編集機能付)", layout="wide")
+st.set_page_config(page_title="待機表メーカー(完成版)", layout="wide")
 
 st.markdown("""
     <style>
+    /* 1. スマホ用レイアウト調整 */
     [data-testid="column"] { flex: 1 1 0% !important; min-width: 0 !important; padding: 0px 1px !important; }
     div.stButton > button { padding: 0rem 0rem !important; font-size: 0.8rem !important; height: 2.8rem !important; width: 100% !important; margin-top: 2px !important; }
     div[data-testid="column"] > div > div > div > p { font-size: 0.8rem; text-align: center; margin-bottom: 0px; }
     .block-container { padding-top: 1rem; padding-bottom: 1rem; }
+    
+    /* 2. カレンダーの土日背景色設定 */
+    /* 6列目（土曜）を薄い水色に */
+    div[data-testid="column"]:nth-of-type(6) {
+        background-color: #f0f8ff; /* AliceBlue */
+        border-radius: 4px;
+    }
+    /* 7列目（日曜）を薄い赤色に */
+    div[data-testid="column"]:nth-of-type(7) {
+        background-color: #fff0f5; /* LavenderBlush */
+        border-radius: 4px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -86,7 +99,6 @@ def toggle_pref(doc, date_str):
 # 2. 自動割り当てロジック
 # ==========================================
 def auto_generate_schedule_data(year, month, prefs):
-    # ロジックのみを実行し、辞書型で返す関数
     counts = {doc: 0 for doc in DOCTORS}
     schedule_result = {}
     
@@ -97,7 +109,7 @@ def auto_generate_schedule_data(year, month, prefs):
         is_holiday = jpholiday.is_holiday(d_obj) or d_obj.weekday() >= 5
         dates.append({"str": d_obj.strftime('%Y-%m-%d'), "obj": d_obj, "is_off": is_holiday})
 
-    # --- ① 連休ブロック化 ---
+    # ① 連休ブロック化
     holiday_blocks = []
     current_block = []
     for d in dates:
@@ -109,7 +121,7 @@ def auto_generate_schedule_data(year, month, prefs):
                 current_block = []
     if current_block: holiday_blocks.append(current_block)
 
-    # --- ② 連休割り当て ---
+    # ② 連休割り当て
     for block in holiday_blocks:
         candidates = []
         hope_candidates = []
@@ -142,7 +154,7 @@ def auto_generate_schedule_data(year, month, prefs):
             else:
                 schedule_result[date_str] = "人員不足"
 
-    # --- ③ 平日割り当て ---
+    # ③ 平日割り当て
     for d in dates:
         date_str = d["str"]
         if date_str in schedule_result: continue 
@@ -188,29 +200,49 @@ def auto_generate_schedule_data(year, month, prefs):
 def render_calendar_selector(year, month, doctor_name):
     cal = calendar.monthcalendar(year, month)
     st.markdown(f"##### 📅 {month}月 - {doctor_name}")
+    
+    # 曜日ヘッダー
     cols = st.columns(7)
     weeks = ["月", "火", "水", "木", "金", "土", "日"]
     for i, w in enumerate(weeks):
         color = "black"
-        if i == 5: color = "blue"
-        if i == 6: color = "red"
+        if i == 5: color = "blue" # 土曜の文字色
+        if i == 6: color = "red"  # 日曜の文字色
         cols[i].markdown(f"<p style='text-align:center; color:{color};'><b>{w}</b></p>", unsafe_allow_html=True)
 
+    # 日付ボタン
     for week in cal:
         cols = st.columns(7)
         for i, day in enumerate(week):
             if day == 0:
                 cols[i].write("")
                 continue
-            date_str = datetime.date(year, month, day).strftime('%Y-%m-%d')
+            
+            # 日付情報の取得
+            date_obj = datetime.date(year, month, day)
+            date_str = date_obj.strftime('%Y-%m-%d')
+            
+            # 祝日判定
+            is_holiday = jpholiday.is_holiday(date_obj)
+            holiday_name = jpholiday.holiday_name(date_obj)
+            
             key = get_pref_key(doctor_name, date_str)
             status = st.session_state['prefs'].get(key, None)
             
-            label = f"{day}"
-            btn_type = "secondary"
-            if status == "NG": label, btn_type = f"{day}✖", "primary"
-            elif status == "HOPE": label = f"{day}〇"
+            # ラベル作成：祝日なら(祝)をつけて赤く目立たせる
+            day_label = str(day)
+            if is_holiday:
+                day_label = f"{day}(祝)"
             
+            label = day_label
+            btn_type = "secondary"
+            
+            if status == "NG": 
+                label, btn_type = f"{day_label}✖", "primary"
+            elif status == "HOPE": 
+                label = f"{day_label}〇"
+            
+            # ボタン描画
             if cols[i].button(label, key=f"btn_{key}", use_container_width=True):
                 toggle_pref(doctor_name, date_str)
                 st.rerun()
@@ -221,7 +253,6 @@ def render_calendar_selector(year, month, doctor_name):
 def render_summary_and_generate(year, month):
     st.markdown("### 🤖 待機表の自動作成・編集")
     
-    # --- データフレームの準備関数 ---
     def create_initial_df():
         schedule_dict = auto_generate_schedule_data(year, month, st.session_state['prefs'])
         num_days = calendar.monthrange(year, month)[1]
@@ -235,8 +266,6 @@ def render_summary_and_generate(year, month):
             if jpholiday.is_holiday(dt): wd_str += "(祝)"
             
             row = {"日付": d, "曜日": wd_str}
-            
-            # 各医師の希望状況
             for doc in DOCTORS:
                 key = get_pref_key(doc, d)
                 status = st.session_state['prefs'].get(key, "")
@@ -244,17 +273,13 @@ def render_summary_and_generate(year, month):
                 if status == "NG": mark = "✖"
                 elif status == "HOPE": mark = "〇"
                 row[doc] = mark
-            
-            # AIが提案した担当者
             row["★担当者"] = schedule_dict.get(d, "")
             table_data.append(row)
         
         return pd.DataFrame(table_data)
 
-    # --- セッションステートで編集中のデータを保持 ---
     session_key = f"schedule_df_{year}_{month}"
     
-    # 「再生成」ボタン または データがまだ無い場合に作成
     col1, col2 = st.columns([1, 4])
     if col1.button("🤖 AI案を再生成"):
         st.session_state[session_key] = create_initial_df()
@@ -263,10 +288,8 @@ def render_summary_and_generate(year, month):
     if session_key not in st.session_state:
         st.session_state[session_key] = create_initial_df()
 
-    # --- データエディタの表示 ---
     st.info("👇 **「★担当者」のセルは変更可能です。** 変更すると下の回数に即座に反映されます。")
     
-    # 医師の選択肢リスト
     doctor_options = DOCTORS + ["人員不足", "その他"]
 
     edited_df = st.data_editor(
@@ -278,22 +301,17 @@ def render_summary_and_generate(year, month):
             "曜日": st.column_config.TextColumn(disabled=True),
             "★担当者": st.column_config.SelectboxColumn(
                 "★担当者 (クリックで編集)",
-                help="クリックして担当者を変更できます",
                 width="medium",
                 options=doctor_options,
                 required=True
             )
         },
-        disabled=[d for d in DOCTORS] # 医師ごとの〇✖列は編集不可
+        disabled=[d for d in DOCTORS]
     )
 
-    # --- 編集結果に基づいて回数を再集計 ---
     st.write("---")
     st.markdown("#### 📊 担当回数（手動修正反映済み）")
-    
-    # 担当者列の出現回数をカウント
     counts = edited_df["★担当者"].value_counts()
-    
     cols = st.columns(len(DOCTORS))
     for i, doc in enumerate(DOCTORS):
         count = counts.get(doc, 0)
@@ -313,6 +331,7 @@ with st.sidebar:
     if st.button("🔄 更新"):
         st.cache_data.clear()
         st.session_state['prefs'] = load_data()
+        # 編集中のデータもリセット
         for key in list(st.session_state.keys()):
             if key.startswith("schedule_df_"):
                 del st.session_state[key]
