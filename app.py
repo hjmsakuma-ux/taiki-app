@@ -1,36 +1,49 @@
 import streamlit as st
 import pandas as pd
-# ... (他のimport) ...
+import datetime
+import calendar
+import gspread
+import os
+from google.oauth2.service_account import Credentials
 
 # ==========================================
 # 0. 設定とスプレッドシート接続機能
 # ==========================================
 st.set_page_config(page_title="待機表メーカー(クラウド版)", layout="wide")
 
-# ▼▼▼ ここに追加しました ▼▼▼
+# ▼▼▼ スマホで見やすくする魔法のCSS ▼▼▼
 st.markdown("""
     <style>
+    /* カラム（列）を強制的に横並びにする */
     [data-testid="column"] {
         flex: 1 1 0% !important;
         min-width: 0 !important;
         padding: 0px 1px !important;
     }
+    /* ボタンをコンパクトにする */
     div.stButton > button {
-        padding: 0.25rem 0rem !important;
-        font-size: 0.7rem !important;
-        min-height: 0px !important;
-        height: 3em !important;
+        padding: 0rem 0rem !important;
+        font-size: 0.8rem !important;
+        height: 2.8rem !important;
+        width: 100% !important;
+        margin-top: 2px !important;
+    }
+    /* 曜日表示の調整 */
+    div[data-testid="column"] > div > div > div > p {
+        font-size: 0.8rem;
+        text-align: center;
+        margin-bottom: 0px;
+    }
+    /* ヘッダーの余白調整 */
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
     }
     </style>
     """, unsafe_allow_html=True)
-# ▲▲▲ ここまで ▲▲▲
 
-# 医師リスト
-DOCTORS = ["三浦医師(A)", "伊藤医師(B)", "宮崎医師(C)", "佐久間医師(D)"]
-# ... (以下変更なし) ...
-
-# 医師リスト
-DOCTORS = ["三浦医師(A)", "伊藤医師(B)", "宮崎医師(C)", "佐久間医師(D)"]
+# ▼▼▼ 名前から(A)などを削除しました ▼▼▼
+DOCTORS = ["三浦医師", "伊藤医師", "宮崎医師", "佐久間医師"]
 
 # スプレッドシートへの接続関数
 def get_worksheet():
@@ -39,11 +52,9 @@ def get_worksheet():
         "https://www.googleapis.com/auth/drive"
     ]
     
-    # PC上の secrets.json があればそれを使い、なければクラウドの鍵を使う
     if os.path.exists("secrets.json"):
         credentials = Credentials.from_service_account_file("secrets.json", scopes=scopes)
     else:
-        # クラウド（Streamlit Cloud）上の設定
         credentials = Credentials.from_service_account_info(
             st.secrets["gcp_service_account"],
             scopes=scopes
@@ -64,7 +75,7 @@ def load_data():
             prefs[str(r['key'])] = r['status']
         return prefs
     except Exception as e:
-        st.error(f"接続エラー: {e}")
+        # 接続エラー時は静かに空データを返す（画面が止まるのを防ぐ）
         return {}
 
 # データを保存する
@@ -110,12 +121,13 @@ def toggle_pref(doc, date_str):
 # ==========================================
 def render_calendar_selector(year, month, doctor_name):
     cal = calendar.monthcalendar(year, month)
-    st.markdown(f"### 📅 {year}年{month}月 - {doctor_name}")
+    # 名前からカッコ書きが消えたのでそのまま表示
+    st.markdown(f"##### 📅 {month}月 - {doctor_name}")
     
     cols = st.columns(7)
     weeks = ["月", "火", "水", "木", "金", "土", "日"]
     for i, w in enumerate(weeks):
-        cols[i].markdown(f"**<center>{w}</center>**", unsafe_allow_html=True)
+        cols[i].markdown(f"<p style='text-align:center;'><b>{w}</b></p>", unsafe_allow_html=True)
 
     for week in cal:
         cols = st.columns(7)
@@ -128,16 +140,14 @@ def render_calendar_selector(year, month, doctor_name):
             key = get_pref_key(doctor_name, date_str)
             status = st.session_state['prefs'].get(key, None)
             
-            # --- ここを修正：より安全な書き方に変更しました ---
             label = f"{day}"
             btn_type = "secondary"
 
             if status == "NG":
-                label = f"{day} 🟥"
+                label = f"{day}✖" # スマホで見やすいように記号に変更
                 btn_type = "primary"
             elif status == "HOPE":
-                label = f"{day} 🟦"
-            # ------------------------------------------------
+                label = f"{day}〇"
             
             if cols[i].button(label, key=f"btn_{key}", use_container_width=True):
                 toggle_pref(doctor_name, date_str)
@@ -146,7 +156,7 @@ def render_calendar_selector(year, month, doctor_name):
 # ==========================================
 # 3. メイン画面
 # ==========================================
-st.title("🏥 待機表 (スプレッドシート連携版)")
+st.title("🏥 待機表")
 
 password = st.sidebar.text_input("パスワード", type="password")
 if password != "ikyoku2026":
@@ -154,17 +164,19 @@ if password != "ikyoku2026":
     st.stop()
 
 with st.sidebar:
-    st.success("ログイン成功・同期中")
-    if st.button("🔄 最新データを再読込"):
+    st.success("ログイン中")
+    if st.button("🔄 更新"):
         st.cache_data.clear()
         st.session_state['prefs'] = load_data()
         st.rerun()
     
     st.divider()
+    # デフォルトを2026年2月に設定しておきます
     target_year = st.number_input("年", 2025, 2030, 2026)
-    start_month = st.selectbox("開始月", range(1, 13), index=1)
+    start_month = st.selectbox("月", range(1, 13), index=1)
 
-tabs = st.tabs([d.split("(")[0] for d in DOCTORS])
+# タブの作成
+tabs = st.tabs(DOCTORS)
 for i, doctor in enumerate(DOCTORS):
     with tabs[i]:
         render_calendar_selector(target_year, start_month, doctor)
