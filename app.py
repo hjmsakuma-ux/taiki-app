@@ -13,17 +13,18 @@ from datetime import timedelta
 # ==========================================
 # 0. 設定とスタイル
 # ==========================================
-st.set_page_config(page_title="待機表メーカー(完成版)", layout="wide")
+# スマホでは自動で閉じ、PCでは開く設定
+st.set_page_config(
+    page_title="待機表メーカー(完成版)", 
+    layout="wide", 
+    initial_sidebar_state="auto"
+)
 
+# ★★★ 修正ポイント ★★★
+# 画面上部のバーやヘッダーを隠すコードを「全て」削除しました。
+# これで左上の「>」ボタンが確実に表示されるはずです。
 st.markdown("""
     <style>
-    /* ---------------------------------------------------
-       基本UI設定
-    --------------------------------------------------- */
-    [data-testid="stToolbar"] { visibility: hidden; display: none; }
-    .stApp > header { visibility: hidden; }
-    [data-testid="column"] { padding: 0px 2px !important; }
-
     /* ---------------------------------------------------
        ★ タブ（医師名・作成結果）の設定
     --------------------------------------------------- */
@@ -32,6 +33,11 @@ st.markdown("""
     button[data-baseweb="tab"] div p, button[data-baseweb="tab"] div {
         font-size: 1.3rem !important; font-weight: bold !important;
     }
+
+    /* ---------------------------------------------------
+       スマホ用調整：パディングを少し詰める
+    --------------------------------------------------- */
+    [data-testid="column"] { padding: 0px 2px !important; }
 
     /* ---------------------------------------------------
        入力ボタンのデザイン (文字大きく)
@@ -92,10 +98,10 @@ st.markdown("""
         line-height: 1.2;
         font-family: "Segoe UI Emoji", sans-serif;
     }
-    
+     
     .cal-box.sat { background-color: #f0f8ff; border-color: #99c2ff; color: #0044cc; }
     .cal-box.sun { background-color: #fff0f5; border-color: #ff9999; color: #cc0000; }
-    
+     
     .week-header {
         text-align: center; font-weight: bold; margin-bottom: 5px; font-size: 1.1rem;
     }
@@ -106,7 +112,7 @@ st.markdown("""
         margin-top: 10px; margin-bottom: 10px; padding-left: 10px;
         border-left: 6px solid #008CBA;
     }
-    
+     
     /* ステータスバッジ */
     .status-badge-agree { background-color: #d4edda; color: #155724; padding: 4px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #c3e6cb; }
     .status-badge-reject { background-color: #f8d7da; color: #721c24; padding: 4px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #f5c6cb; }
@@ -178,8 +184,8 @@ USER_CREDENTIALS = {
 
 FIXED_SCHEDULE = {
     0: "佐久間医師", 
-    1: "宮崎医師",    
-    3: "伊藤医師"     
+    1: "宮崎医師",     
+    3: "伊藤医師"      
 }
 
 HANDICAP = {
@@ -306,7 +312,7 @@ def get_target_months(year, period_label):
         return [(year, 9), (year, 10), (year, 11)]
     elif period_label == "12月～2月":
         return [(year, 12), (year + 1, 1), (year + 1, 2)]
-    
+     
     if period_label.endswith("月") and "～" not in period_label:
         try:
             m_str = period_label.replace("月", "")
@@ -322,10 +328,10 @@ def get_target_months(year, period_label):
 def auto_generate_schedule_data(year_months, prefs):
     counts = {doc: 0 for doc in DOCTORS}
     holiday_streak = {doc: 0 for doc in DOCTORS}
-    
+     
     # 3ヶ月通算の週末回数
     weekend_counts = {doc: 0 for doc in DOCTORS}
-    
+     
     # 月ごとの週末回数管理 {(year, month): {doc: count}}
     monthly_weekend_counts = {}
 
@@ -333,14 +339,14 @@ def auto_generate_schedule_data(year_months, prefs):
     miura_monthly_sets = {}
 
     schedule_result = {}
-    
+     
     dates = []
     for y, m in year_months:
         if (y, m) not in monthly_weekend_counts:
             monthly_weekend_counts[(y, m)] = {doc: 0 for doc in DOCTORS}
         if (y, m) not in miura_monthly_sets:
             miura_monthly_sets[(y, m)] = 0
-            
+             
         num_days = calendar.monthrange(y, m)[1]
         for day in range(1, num_days + 1):
             d_obj = datetime.date(y, m, day)
@@ -1133,12 +1139,16 @@ def render_admin_manual_page():
 # ==========================================
 st.title("🏥 待機表メーカー")
 
+# --- ★スマホ対応修正: メイン画面にもログイン案内を表示 ---
 st.sidebar.header("ログイン")
 login_user = st.sidebar.selectbox("ユーザー名", ["管理者"] + DOCTORS)
 password = st.sidebar.text_input("パスワード", type="password")
 
 if USER_CREDENTIALS.get(login_user) != password:
-    st.warning("👈 左のサイドバーでログインしてください")
+    # メイン画面に大きく表示
+    st.info("📱 スマホの方は、左上の「 > 」マークを押してログインしてください。")
+    st.warning("👈 左のサイドバーでユーザー名とパスワードを入力してください")
+    
     st.sidebar.divider()
     if st.sidebar.button("📖 アプリの使い方を見る"):
         render_manual_page()
