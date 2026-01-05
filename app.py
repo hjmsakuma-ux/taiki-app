@@ -1,15 +1,33 @@
 import streamlit as st
 import pandas as pd
-import datetime
-import calendar
-import gspread
-import os
-from google.oauth2.service_account import Credentials
+# ... (他のimport) ...
 
 # ==========================================
 # 0. 設定とスプレッドシート接続機能
 # ==========================================
 st.set_page_config(page_title="待機表メーカー(クラウド版)", layout="wide")
+
+# ▼▼▼ ここに追加しました ▼▼▼
+st.markdown("""
+    <style>
+    [data-testid="column"] {
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+        padding: 0px 1px !important;
+    }
+    div.stButton > button {
+        padding: 0.25rem 0rem !important;
+        font-size: 0.7rem !important;
+        min-height: 0px !important;
+        height: 3em !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+# ▲▲▲ ここまで ▲▲▲
+
+# 医師リスト
+DOCTORS = ["三浦医師(A)", "伊藤医師(B)", "宮崎医師(C)", "佐久間医師(D)"]
+# ... (以下変更なし) ...
 
 # 医師リスト
 DOCTORS = ["三浦医師(A)", "伊藤医師(B)", "宮崎医師(C)", "佐久間医師(D)"]
