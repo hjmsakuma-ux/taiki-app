@@ -13,34 +13,29 @@ from datetime import timedelta
 # ==========================================
 # 0. 設定とスタイル
 # ==========================================
-# スマホでは自動で閉じ、PCでは開く設定
 st.set_page_config(
     page_title="待機表メーカー(完成版)", 
     layout="wide", 
     initial_sidebar_state="auto"
 )
 
-# ★★★ 修正ポイント ★★★
-# 画面上部のバーやヘッダーを隠すコードを「全て」削除しました。
-# これで左上の「>」ボタンが確実に表示されるはずです。
 st.markdown("""
     <style>
     /* ---------------------------------------------------
-       ★ タブ（医師名・作成結果）の設定
+       ★ 共通UI設定
     --------------------------------------------------- */
+    /* タブの余白調整 */
     div[data-baseweb="tab-list"] { gap: 10px; }
     button[data-baseweb="tab"] { height: 4.5rem !important; padding: 0 20px !important; }
     button[data-baseweb="tab"] div p, button[data-baseweb="tab"] div {
-        font-size: 1.3rem !important; font-weight: bold !important;
+        font-size: 1.2rem !important; font-weight: bold !important;
     }
 
-    /* ---------------------------------------------------
-       スマホ用調整：パディングを少し詰める
-    --------------------------------------------------- */
-    [data-testid="column"] { padding: 0px 2px !important; }
+    /* カラムの余白調整 */
+    [data-testid="column"] { padding: 0px 5px !important; }
 
     /* ---------------------------------------------------
-       入力ボタンのデザイン (文字大きく)
+       ★ カレンダーボタンのデザイン（標準）
     --------------------------------------------------- */
     div[data-testid="stPopover"] button {
         height: 6.5rem !important;
@@ -55,7 +50,7 @@ st.markdown("""
         padding: 0px !important;
     }
     div[data-testid="stPopover"] button p {
-        font-size: 1.6rem !important;
+        font-size: 1.5rem !important;
         font-weight: 900 !important;
         color: #333 !important;
         margin: 0px !important;
@@ -68,7 +63,7 @@ st.markdown("""
     }
 
     /* ---------------------------------------------------
-       カレンダー表示用スタイル
+       ★ 印刷プレビュー（標準）
     --------------------------------------------------- */
     .cal-box {
         width: 100%;
@@ -98,32 +93,26 @@ st.markdown("""
         line-height: 1.2;
         font-family: "Segoe UI Emoji", sans-serif;
     }
-     
     .cal-box.sat { background-color: #f0f8ff; border-color: #99c2ff; color: #0044cc; }
     .cal-box.sun { background-color: #fff0f5; border-color: #ff9999; color: #cc0000; }
-     
     .week-header {
         text-align: center; font-weight: bold; margin-bottom: 5px; font-size: 1.1rem;
     }
 
-    /* 印刷用タイトル */
+    /* ---------------------------------------------------
+       ★ 印刷用スタイル
+    --------------------------------------------------- */
     .print-month-title {
         font-size: 1.6rem; font-weight: bold; color: #333;
         margin-top: 10px; margin-bottom: 10px; padding-left: 10px;
         border-left: 6px solid #008CBA;
     }
-     
-    /* ステータスバッジ */
     .status-badge-agree { background-color: #d4edda; color: #155724; padding: 4px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #c3e6cb; }
     .status-badge-reject { background-color: #f8d7da; color: #721c24; padding: 4px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #f5c6cb; }
     .status-badge-pending { background-color: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #ffeeba; }
 
-    /* ---------------------------------------------------
-       ★ 印刷用スタイル
-    --------------------------------------------------- */
     @media print {
         @page { size: landscape; margin: 5mm; }
-        
         section[data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"],
         [data-testid="stDataEditor"], [data-testid="stMetric"], [data-testid="stDataFrame"],
         .stAlert, [data-testid="stSelectbox"], [data-testid="stDateInput"], button, hr, 
@@ -711,7 +700,7 @@ def render_calendar_selector(year_months, period_label, current_year, doctor_nam
             color = "black"
             if i == 5: color = "blue"
             if i == 6: color = "red"
-            cols[i].markdown(f"<p style='text-align:center; color:{color};'><b>{w}</b></p>", unsafe_allow_html=True)
+            cols[i].markdown(f"<p class='week-header' style='color:{color};'>{w}</p>", unsafe_allow_html=True)
 
         for week in cal:
             cols = st.columns(7)
@@ -724,6 +713,7 @@ def render_calendar_selector(year_months, period_label, current_year, doctor_nam
                 is_holiday = check_is_holiday(date_obj)
                 
                 key = get_pref_key(doctor_name, date_str)
+                # ★修正: status変数の定義漏れを防止
                 status = st.session_state['prefs'].get(key, None)
                 
                 day_label = str(day)
